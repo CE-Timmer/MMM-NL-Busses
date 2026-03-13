@@ -20,6 +20,6 @@
   },
   "homepage": "https://github.com/73cirdan/MMM-bustimes#readme",
   "dependencies": {
-    "axios": ">=1.6.0"
+    "axios": ">=1.13.5"
   }
 }
