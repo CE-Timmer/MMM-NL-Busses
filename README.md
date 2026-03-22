@@ -102,7 +102,7 @@ More information can be found on the
 
 Option | Description
 ------ | -----------
-`timingPointCode` | One or more TimingPointCodes. Use a comma separated list (`"code1,code2"`) if you need more than one departure list. When `stopAreaCode` is also set, results are combined.<br>**At least one of `timingPointCode` or `stopAreaCode` is required**
+`timingPointCode` | One or more TimingPointCodes. Use a comma separated list (`"code1,code2"`) if you need more than one departure list. To show arrival time and travel duration for a preferred destination, pair an origin and destination TimingPointCode with `>`: `"originCode>destinationCode"`. When a preferred destination is configured, only journeys that also stop at that destination are shown for that origin. When `stopAreaCode` is also set, results are combined.<br>**At least one of `timingPointCode` or `stopAreaCode` is required**
 `stopAreaCode` | One or more StopAreaCodes. Use a comma separated list (`"code1,code2"`) if you need more than one departure list. When `timingPointCode` is also set, results are combined.<br>**At least one of `timingPointCode` or `stopAreaCode` is required**
 `displaymode` | Layout of the module; see above for example and explanation.<br>*Possible values:* `"small"`, `"medium"`, `"large"`<br>**Required**
 `departures` | How many departures are shown per stop (not used in *small* mode).<br>*Default value:* `3`
@@ -118,6 +118,7 @@ Option | Description
 `showHeader` | Show a header with column names for the *large* display mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `alwaysShowStopName` | When this is set to `false` the name of the stop will be hidden when the module is only displaying data for a single stop in the *medium* or *large* display mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
 `timeFormat` | Format of departure times shown. E.g., `"HH:mm:ss"` will include seconds.<br>*Possible values:* any [Moment.js format string](https://momentjs.com/docs/#/displaying/format/)<br>*Default value:* `"HH:mm"`
+`combinedRoutes` | Optional mapping for through-routes that change line number before the preferred destination stop. Keys are the origin line number and values are one or more continuation line numbers used after the handoff. Example: `{ "488": ["416"] }` lets a `488` departure match a preferred destination that is only served after it continues as line `416`.<br>*Default value:* `{}`
 `axiosfix`| Fixes issue #15, set to "PostmanRuntime/7.26.2"<br>*Default:* `Do not use, if there is no problem`
 
 
@@ -128,13 +129,18 @@ Option | Description
         position: "top_left",
         header: "Bustimes",
         config: {
-            timingPointCode: "20320110,20141200",
+            timingPointCode: "53600160>53602030",
             displaymode: "medium",
             showTownName: true,
-            departures: 3
+            departures: 3,
+            combinedRoutes: {
+                "488": ["416"]
+            }
         }
     },
 ```
+
+In the example above, departures from Dordrecht Centraal (`53600160`) are filtered to journeys that also reach Leerpark (`53602030`). Because some trips continue from line `488` to line `416`, `combinedRoutes` tells the module to keep matching that through-service and show the preferred stop arrival time plus the trip duration.
 
 # Special Thanks
 Thanks to contributors [hervidero](https://github.com/hervidero), [hansterwal](https://github.com/hansterwal), [koenk](https://github.com/koenk) and [vpilo](https://github.com/vpilo)  for making this a better module !!! 
@@ -144,4 +150,3 @@ The MIT License (MIT)
 Copyright 2017 Cirdan
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. **The software is provided “as is”, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.**
-

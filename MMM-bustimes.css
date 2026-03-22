@@ -61,6 +61,14 @@
     padding: 0px 5px 0px 5px;
     text-align: left;
 }
+.bustimes .tripinfo {
+    display: block;
+    opacity: 0.8;
+    white-space: nowrap;
+}
+.bustimes .ovtable-large .tripinfo {
+    padding-top: 2px;
+}
 .bustimes .liveicon {
     padding-left: 4px;
     font-size: 40%;

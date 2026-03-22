@@ -115,10 +115,10 @@ Module.register("MMM-bustimes", {
      * Disable refreshing.
      */
     suspend: function() {
-        if (this.scheduledTimer != -1) {
+        if (this.scheduledTimer !== -1) {
             if (this.config.debug)
                 Log.info(this.name + ": Canceling updates");
-            clearInterval(scheduledTimer);
+            clearInterval(this.scheduledTimer);
             this.scheduledTimer = -1;
         }
     },
@@ -127,7 +127,7 @@ Module.register("MMM-bustimes", {
      * Enable automatic refreshing.
      */
     resume: function() {
-        if (this.scheduledTimer == -1) {
+        if (this.scheduledTimer === -1) {
             if (this.config.debug)
                 Log.info(this.name + ": Scheduling updates");
             var self = this;
@@ -165,6 +165,70 @@ Module.register("MMM-bustimes", {
             time = moment(departure.ExpectedDepartureTime).format(this.config.timeFormat);
         }
         return time;
+    },
+
+    parseTimingPointEntries: function() {
+        const timingPointCode = this.config.timingPointCode;
+        const rawEntries = Array.isArray(timingPointCode) ? timingPointCode : String(timingPointCode || "").split(",");
+
+        return rawEntries
+            .map((entry) => String(entry).trim())
+            .filter((entry) => entry.length > 0)
+            .map((entry) => {
+                const [originTimingPointCode, preferredDestinationTimingPointCode] = entry
+                    .split(">")
+                    .map((part) => part.trim());
+
+                return {
+                    originTimingPointCode: originTimingPointCode,
+                    preferredDestinationTimingPointCode: preferredDestinationTimingPointCode || null
+                };
+            })
+            .filter((entry) => entry.originTimingPointCode);
+    },
+
+    getRequestConfig: function() {
+        const requestConfig = Object.assign({}, this.config);
+        const timingPointEntries = this.parseTimingPointEntries();
+
+        if (timingPointEntries.length > 0) {
+            requestConfig.timingPointEntries = timingPointEntries;
+            requestConfig.timingPointCode = timingPointEntries
+                .map((entry) => entry.originTimingPointCode)
+                .join(",");
+        }
+
+        return requestConfig;
+    },
+
+    getPreferredArrivalInfo: function(departure) {
+        if (!departure.PreferredArrivalTime)
+            return null;
+
+        const parts = [moment(departure.PreferredArrivalTime).format(this.config.timeFormat)];
+        if (Number.isFinite(departure.TravelDurationMinutes))
+            parts.push(departure.TravelDurationMinutes + "m");
+
+        const continuationLine = departure.PreferredDestinationLinePublicNumber &&
+            departure.PreferredDestinationLinePublicNumber !== departure.LinePublicNumber ?
+            "L" + departure.PreferredDestinationLinePublicNumber + " " :
+            "";
+        const destinationName = departure.PreferredDestinationName ?
+            continuationLine + departure.PreferredDestinationName + ": " :
+            "";
+
+        return destinationName + parts.join(" / ");
+    },
+
+    appendPreferredArrivalInfo: function(cell, departure) {
+        const preferredArrivalInfo = this.getPreferredArrivalInfo(departure);
+        if (!preferredArrivalInfo)
+            return;
+
+        const info = document.createElement("div");
+        info.className = "tripinfo xsmall";
+        info.innerHTML = preferredArrivalInfo;
+        cell.appendChild(info);
     },
 
     createEmptyTable: function(className) {
@@ -272,6 +336,7 @@ Module.register("MMM-bustimes", {
             if (this.config.showOperator)
                 this.createCell(row, departure.Operator, "operator");
             const time = this.createCell(row, this.getDepartureTime(departure), "time");
+            this.appendPreferredArrivalInfo(time, departure);
 
             if (this.config.showLiveIcon)
                 this.createLiveIcon(time, departure.LastUpdateTimeStamp);
@@ -337,6 +402,7 @@ Module.register("MMM-bustimes", {
                 if (this.config.showOperator)
                     this.createCell(row, departure.Operator, "operator");
                 const time = this.createCell(row, this.getDepartureTime(departure), "time");
+                this.appendPreferredArrivalInfo(time, departure);
 
                 if (this.config.showLiveIcon)
                     this.createLiveIcon(time, departure.LastUpdateTimeStamp);
@@ -398,6 +464,7 @@ Module.register("MMM-bustimes", {
                 if (this.config.showOperator)
                     this.createCell(row, departure.Operator, "operator");
                 const dest = this.createCell(row, departure.Destination, "destination");
+                this.appendPreferredArrivalInfo(dest, departure);
                 const time = this.createCell(row, this.getDepartureTime(departure), "time");
 
                 if (this.config.showLiveIcon)
@@ -458,7 +525,7 @@ Module.register("MMM-bustimes", {
 
         this.sendSocketNotification('GETDATA', {
             identifier: this.identifier,
-            config: this.config
+            config: this.getRequestConfig()
         });
     },
 
