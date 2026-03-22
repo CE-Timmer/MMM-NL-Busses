@@ -112,6 +112,55 @@ module.exports = NodeHelper.create({
         return [String(configuredLines)];
     },
 
+    getPassDateTime: function(pass) {
+        return new Date(
+            pass.ExpectedArrivalTime ||
+            pass.TargetArrivalTime ||
+            pass.ExpectedDepartureTime ||
+            pass.TargetDepartureTime
+        );
+    },
+
+    findTimeBasedContinuationPass: function(pass, preferredDestinationCode, destinationPassIndex, continuationLines) {
+        const continuationPasses = destinationPassIndex.continuation[preferredDestinationCode];
+        if (!continuationPasses)
+            return null;
+
+        const departureTime = this.getPassDateTime(pass);
+        if (!(departureTime instanceof Date) || Number.isNaN(departureTime.getTime()))
+            return null;
+
+        const maxArrivalTime = departureTime.getTime() + (120 * 60 * 1000);
+        const candidates = [];
+
+        for (const destinationPassList of Object.values(continuationPasses)) {
+            for (const candidate of destinationPassList) {
+                if (String(candidate.DataOwnerCode || "") !== String(pass.DataOwnerCode || ""))
+                    continue;
+                if (String(candidate.OperationDate || "") !== String(pass.OperationDate || ""))
+                    continue;
+                if (!continuationLines.includes(String(candidate.LinePublicNumber)))
+                    continue;
+
+                const candidateTime = this.getPassDateTime(candidate);
+                if (!(candidateTime instanceof Date) || Number.isNaN(candidateTime.getTime()))
+                    continue;
+                if (candidateTime.getTime() < departureTime.getTime())
+                    continue;
+                if (candidateTime.getTime() > maxArrivalTime)
+                    continue;
+
+                candidates.push(candidate);
+            }
+        }
+
+        if (candidates.length === 0)
+            return null;
+
+        candidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
+        return candidates[0];
+    },
+
     findPreferredDestinationPass: function(pass, preferredDestinationCode, destinationPassIndex, config) {
         if (!preferredDestinationCode)
             return null;
@@ -129,11 +178,19 @@ module.exports = NodeHelper.create({
         const possibleMatches = continuationPasses &&
             continuationPasses[this.buildContinuationKey(pass)];
 
-        if (!possibleMatches || possibleMatches.length === 0)
-            return null;
+        if (possibleMatches && possibleMatches.length > 0) {
+            const directContinuationMatch = possibleMatches.find((candidate) =>
+                continuationLines.includes(String(candidate.LinePublicNumber))
+            );
+            if (directContinuationMatch)
+                return directContinuationMatch;
+        }
 
-        return possibleMatches.find((candidate) =>
-            continuationLines.includes(String(candidate.LinePublicNumber))
+        return this.findTimeBasedContinuationPass(
+            pass,
+            preferredDestinationCode,
+            destinationPassIndex,
+            continuationLines
         ) || null;
     },
 
