@@ -72,6 +72,7 @@ Option | Description
 `stopAreaCode` | One or more StopAreaCodes. Use a comma-separated list (`"code1,code2"`) if you need more than one departure list. When `timingPointCode` is also set, results are combined.<br>**At least one of `timingPointCode` or `stopAreaCode` is required**
 `displaymode` | Layout of the module.<br>*Possible values:* `"small"`, `"medium"`, `"large"`<br>**Required**
 `departures` | How many departures are shown per stop (not used in *small* mode).<br>*Default value:* `3`
+`skipDepartures` | Optional per-stop mapping to skip the first N matching departures before display. Keys are origin TimingPointCodes and values are the number of departures to skip. Example: `{ "53400221": 1, "53402520": 2 }` skips the first departure for `53400221` and the first two departures for `53402520`.<br>*Default value:* `{}`
 `destinations` | An array with the destination codes you care about. Only lines going to one of these destinations will be shown.<br>*Default value:* `[]`
 `showTownName` | Include the town name in the stop name.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `showOnlyDepartures` | Only show departures from stops. This filters out lines that terminate at a stop and do not allow boarding.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
@@ -124,6 +125,10 @@ through-service and show the preferred stop arrival time plus the trip duration.
         showTownName: true,
         departures: 10,
         showDelay: true,
+        skipDepartures: {
+            "53400221": 1,
+            "53402520": 0
+        },
         combinedRoutes: {
             "488": ["416"]
         }
@@ -134,6 +139,7 @@ through-service and show the preferred stop arrival time plus the trip duration.
 In this example, the module shows departures from both `53400221` and `53402520`,
 but only for journeys that continue to `53602030`. The `combinedRoutes` setting is
 needed here because line `488` continues as line `416` before reaching Leerpark.
+The `skipDepartures` setting skips the first matching departure for `53400221`.
 
 # Special Thanks
 

@@ -495,7 +495,19 @@ Module.register("MMM-NL-Busses", {
             return this.createMessage(this.translate("LOADING"));
 
         const timingPointNames = Object.keys(this.departures);
-        timingPointNames.sort();
+        timingPointNames.sort((left, right) => {
+            const leftOrder = this.departures[left][0] && Number.isInteger(this.departures[left][0].ConfiguredStopOrder) ?
+                this.departures[left][0].ConfiguredStopOrder :
+                Number.MAX_SAFE_INTEGER;
+            const rightOrder = this.departures[right][0] && Number.isInteger(this.departures[right][0].ConfiguredStopOrder) ?
+                this.departures[right][0].ConfiguredStopOrder :
+                Number.MAX_SAFE_INTEGER;
+
+            if (leftOrder !== rightOrder)
+                return leftOrder - rightOrder;
+
+            return left.localeCompare(right);
+        });
 
         if (timingPointNames.length == 0)
             return this.createMessage(this.translate("noData"));

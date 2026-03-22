@@ -258,9 +258,17 @@ module.exports = NodeHelper.create({
     processData: function(data, destinationFilter, includeTownName, debug, routeEntries, destinationPassIndex, config) {
         const departures = {};
         const routeByOriginCode = {};
+        const routeOrderByOriginCode = {};
+        const routeSkipByOriginCode = {};
 
-        for (const routeEntry of routeEntries)
+        for (const [index, routeEntry] of routeEntries.entries()) {
             routeByOriginCode[routeEntry.originTimingPointCode] = routeEntry;
+            routeOrderByOriginCode[routeEntry.originTimingPointCode] = index;
+            routeSkipByOriginCode[routeEntry.originTimingPointCode] =
+                Number.isInteger(config.skipDepartures && config.skipDepartures[routeEntry.originTimingPointCode]) ?
+                    Math.max(0, config.skipDepartures[routeEntry.originTimingPointCode]) :
+                    0;
+        }
 
         // Go over results for each requested tpc (e.g., bus stop). For each tpc
         // we get info about the stop itself, and all the passes (i.e.,
@@ -277,13 +285,17 @@ module.exports = NodeHelper.create({
             const timingPointWheelChairAccessible = (Stop.TimingPointWheelChairAccessible == "ACCESSIBLE") ? 1 : 0;
             const timingPointVisualAccessible = (Stop.TimingPointVisualAccessible == "ACCESSIBLE") ? 1 : 0;
 
-            if (!departures[timingPointName])
+            if (!departures[timingPointName]) {
                 departures[timingPointName] = [];
+                departures[timingPointName].ConfiguredSkipDepartures =
+                    routeSkipByOriginCode[Stop.TimingPointCode] || 0;
+            }
 
             for (const pass of Object.values(Passes)) {
                 const destination = pass.DestinationName50 || "?";
                 const operator = pass.OperatorCode || pass.DataOwnerCode || "?";
                 const routeEntry = routeByOriginCode[pass.TimingPointCode] || {};
+                const routeOrder = routeOrderByOriginCode[pass.TimingPointCode];
                 const preferredDestinationCode = routeEntry.preferredDestinationTimingPointCode;
                 const preferredDestinationPass = this.findPreferredDestinationPass(
                     pass,
@@ -326,7 +338,8 @@ module.exports = NodeHelper.create({
                     PreferredArrivalTime: preferredDestination ? preferredDestination.PreferredArrivalTime : null,
                     PreferredDestinationName: preferredDestination ? preferredDestination.PreferredDestinationName : null,
                     TravelDurationMinutes: preferredDestination ? preferredDestination.TravelDurationMinutes : null,
-                    PreferredDestinationLinePublicNumber: preferredDestinationPass ? preferredDestinationPass.LinePublicNumber : null
+                    PreferredDestinationLinePublicNumber: preferredDestinationPass ? preferredDestinationPass.LinePublicNumber : null,
+                    ConfiguredStopOrder: Number.isInteger(routeOrder) ? routeOrder : Number.MAX_SAFE_INTEGER
                 });
             }
 
@@ -337,10 +350,14 @@ module.exports = NodeHelper.create({
         }
 	//console.log(departures);
         // Sort departures by time, per timingpoint.
-        for (const departureList of Object.values(departures))
+        for (const departureList of Object.values(departures)) {
             departureList.sort(
                 (obj1, obj2) => obj1["ExpectedDepartureTime"].localeCompare(
                     obj2["ExpectedDepartureTime"]));
+            const skipCount = departureList.ConfiguredSkipDepartures || 0;
+            if (skipCount > 0)
+                departureList.splice(0, skipCount);
+        }
 
 	return departures;
     },
