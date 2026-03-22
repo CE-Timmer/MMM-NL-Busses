@@ -1,7 +1,7 @@
 'use strict';
 
 /* MagicMirror²
- * Module: MMM-bustimes
+ * Module: MMM-NL-Busses
  *
  * Adapted for Dutch system by Cirdan
  * Origin by Stefan Krause

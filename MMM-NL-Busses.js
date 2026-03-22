@@ -5,7 +5,7 @@
  * By Cirdan.
  *
  */
-Module.register("MMM-bustimes", {
+Module.register("MMM-NL-Busses", {
 
     scheduledTimer: -1,
 
@@ -59,7 +59,7 @@ Module.register("MMM-bustimes", {
 
     // Define required scripts.
     getStyles: function() {
-        return ["MMM-bustimes.css", "font-awesome.css"];
+        return ["MMM-NL-Busses.css", "font-awesome.css"];
     },
 
     // Define required translations.
