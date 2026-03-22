@@ -25,7 +25,7 @@ Navigate into your MagicMirror's `modules` folder and execute
 
 `git clone https://github.com/CE-Timmer/MMM-NL-Busses`
 
-After that go into the `MMM-bustimes` folder and execute
+After that go into the `MMM-NL-Busses` folder and execute
 
 
 `npm install` 
