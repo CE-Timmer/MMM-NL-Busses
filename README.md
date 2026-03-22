@@ -40,10 +40,7 @@ Be sure to use `MMM-NL-Busses` as the module name in `config.js`.
 
 | Version | Description |
 | --- | --- |
-| `Version 3.0.1` | **bugfix**<br>added an optional config option for users with an Axios get error (issue #15) |
-| `Version 3.0.0` | **merge**<br>replaced `request` with `axios`, merged downstream fixes and updates from [hervidero](https://github.com/hervidero) |
-| `Version 2.0` | **bugfix**<br>merged downstream fixes and updates from [hansterwal](https://github.com/hansterwal), [koenk](https://github.com/koenk) and [vpilo](https://github.com/vpilo) |
-| `Version 1.0` | **First release**<br>produced by 73cirdan |
+| `Version 1.0.1` | **First release**<br>produced by CE-Timmer (original code by 73Cirdan) |
 
 # Using the module
 
@@ -96,7 +93,7 @@ Option | Description
 {
     module: "MMM-NL-Busses",
     position: "top_left",
-    header: "Bustimes",
+    header: "Busses",
     config: {
         timingPointCode: "53600160>53602030",
         displaymode: "medium",
@@ -120,7 +117,7 @@ through-service and show the preferred stop arrival time plus the trip duration.
 {
     module: "MMM-NL-Busses",
     position: "bottom_right",
-    header: "Vertrek Bussen",
+    header: "Busses",
     config: {
         timingPointCode: "53400221>53602030,53402520>53602030",
         displaymode: "large",
@@ -140,13 +137,12 @@ needed here because line `488` continues as line `416` before reaching Leerpark.
 
 # Special Thanks
 
-Thanks to contributors [hervidero](https://github.com/hervidero),
-[hansterwal](https://github.com/hansterwal), [koenk](https://github.com/koenk)
-and [vpilo](https://github.com/vpilo) for making this a better module.
+Thanks to [73cirdan](https://github.com/73cirdan) 
+for making the base code of this module.
 
 The MIT License (MIT)
 =====================
-Copyright 2017 Cirdan
+Copyright 2017 CE-Timmer
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
