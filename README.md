@@ -85,7 +85,7 @@ Option | Description
 `showHeader` | Show a header row in *large* display mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `alwaysShowStopName` | When set to `false`, the stop name is hidden if the module is only showing a single stop in *medium* or *large* mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
 `timeFormat` | Format of departure times shown.<br>*Possible values:* any [Moment.js format string](https://momentjs.com/docs/#/displaying/format/)<br>*Default value:* `"HH:mm"`
-`combinedRoutes` | Optional mapping for through-routes that change line number before the preferred destination stop. Keys are the origin line number. The safest form is an object with continuation lines plus the transfer stop where the change happens, for example: `{ "488": { "lines": ["416"], "viaTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. This lets a `488` departure match a preferred destination that is only served after it continues as line `416` via Dordrecht Centraal. You only need this when the same physical ride changes public line number before the preferred destination. If the line number stays the same all the way, this option is not needed.<br>*Default value:* `{}`
+`combinedRoutes` | Optional mapping for through-routes that change line number before the preferred destination stop. Keys are the origin line number. The safest form is an object with continuation lines plus the transfer stop where the change happens, for example: `{ "488": { "lines": ["416"], "viaTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. If the incoming and outgoing lines use different timing points within the same station, you can use separate transfer codes instead: `{ "488": { "lines": ["416"], "viaOriginTimingPointCode": "53600151", "viaContinuationTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. You only need this when the same physical ride changes public line number before the preferred destination. If the line number stays the same all the way, this option is not needed.<br>*Default value:* `{}`
 `axiosfix` | Fixes issue #15, set to `"PostmanRuntime/7.26.2"` when needed.<br>*Default:* `Do not use if there is no problem`
 
 ## Example config.js content for this module
@@ -103,7 +103,8 @@ Option | Description
         combinedRoutes: {
             "488": {
                 lines: ["416"],
-                viaTimingPointCode: "53600160",
+                viaOriginTimingPointCode: "53600151",
+                viaContinuationTimingPointCode: "53600160",
                 maxTransferMinutes: 20
             }
         }
@@ -136,7 +137,8 @@ through-service and show the preferred stop arrival time plus the trip duration.
         combinedRoutes: {
             "488": {
                 lines: ["416"],
-                viaTimingPointCode: "53600160",
+                viaOriginTimingPointCode: "53600151",
+                viaContinuationTimingPointCode: "53600160",
                 maxTransferMinutes: 20
             }
         }

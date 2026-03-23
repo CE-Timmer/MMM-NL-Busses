@@ -104,16 +104,30 @@ module.exports = NodeHelper.create({
 
     getCombinedRouteRule: function(config, linePublicNumber) {
         if (!config.combinedRoutes)
-            return { lines: [], viaTimingPointCode: null, maxTransferMinutes: 20 };
+            return {
+                lines: [],
+                viaTimingPointCode: null,
+                viaOriginTimingPointCode: null,
+                viaContinuationTimingPointCode: null,
+                maxTransferMinutes: 20
+            };
 
         const configuredRule = config.combinedRoutes[linePublicNumber];
         if (configuredRule === undefined)
-            return { lines: [], viaTimingPointCode: null, maxTransferMinutes: 20 };
+            return {
+                lines: [],
+                viaTimingPointCode: null,
+                viaOriginTimingPointCode: null,
+                viaContinuationTimingPointCode: null,
+                maxTransferMinutes: 20
+            };
 
         if (Array.isArray(configuredRule)) {
             return {
                 lines: configuredRule.map((line) => String(line)),
                 viaTimingPointCode: null,
+                viaOriginTimingPointCode: null,
+                viaContinuationTimingPointCode: null,
                 maxTransferMinutes: 20
             };
         }
@@ -128,6 +142,16 @@ module.exports = NodeHelper.create({
             return {
                 lines: rawLines.map((line) => String(line)),
                 viaTimingPointCode: configuredRule.viaTimingPointCode || configuredRule.via || null,
+                viaOriginTimingPointCode:
+                    configuredRule.viaOriginTimingPointCode ||
+                    configuredRule.viaFromTimingPointCode ||
+                    configuredRule.viaOrigin ||
+                    null,
+                viaContinuationTimingPointCode:
+                    configuredRule.viaContinuationTimingPointCode ||
+                    configuredRule.viaToTimingPointCode ||
+                    configuredRule.viaContinuation ||
+                    null,
                 maxTransferMinutes: Number.isFinite(configuredRule.maxTransferMinutes) ?
                     configuredRule.maxTransferMinutes :
                     20
@@ -137,6 +161,8 @@ module.exports = NodeHelper.create({
         return {
             lines: [String(configuredRule)],
             viaTimingPointCode: null,
+            viaOriginTimingPointCode: null,
+            viaContinuationTimingPointCode: null,
             maxTransferMinutes: 20
         };
     },
@@ -168,12 +194,19 @@ module.exports = NodeHelper.create({
     },
 
     findContinuationViaTransferStop: function(pass, combinedRouteRule, passIndex, preferredDestinationCode) {
-        if (!combinedRouteRule.viaTimingPointCode)
+        const originTransferTimingPointCode =
+            combinedRouteRule.viaOriginTimingPointCode ||
+            combinedRouteRule.viaTimingPointCode;
+        const continuationTransferTimingPointCode =
+            combinedRouteRule.viaContinuationTimingPointCode ||
+            combinedRouteRule.viaTimingPointCode;
+
+        if (!originTransferTimingPointCode || !continuationTransferTimingPointCode)
             return null;
 
         const originViaPass = this.findPassAtStop(
             passIndex,
-            combinedRouteRule.viaTimingPointCode,
+            originTransferTimingPointCode,
             pass,
             [String(pass.LinePublicNumber)]
         );
@@ -184,7 +217,7 @@ module.exports = NodeHelper.create({
         if (!(originArrivalAtVia instanceof Date) || Number.isNaN(originArrivalAtVia.getTime()))
             return null;
 
-        const transferStopPasses = passIndex.continuation[combinedRouteRule.viaTimingPointCode];
+        const transferStopPasses = passIndex.continuation[continuationTransferTimingPointCode];
         if (!transferStopPasses)
             return null;
 
@@ -439,10 +472,15 @@ module.exports = NodeHelper.create({
             .map((entry) => entry.preferredDestinationTimingPointCode)
             .filter((code) => code))];
         const transferTimingPointCodes = [...new Set(Object.values(config.combinedRoutes || {})
-            .map((rule) => {
-                if (rule && typeof rule === "object" && !Array.isArray(rule))
-                    return rule.viaTimingPointCode || rule.via || null;
-                return null;
+            .flatMap((rule) => {
+                if (rule && typeof rule === "object" && !Array.isArray(rule)) {
+                    return [
+                        rule.viaTimingPointCode || rule.via || null,
+                        rule.viaOriginTimingPointCode || rule.viaFromTimingPointCode || rule.viaOrigin || null,
+                        rule.viaContinuationTimingPointCode || rule.viaToTimingPointCode || rule.viaContinuation || null
+                    ];
+                }
+                return [];
             })
             .filter((code) => code))];
 
