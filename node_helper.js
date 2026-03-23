@@ -277,18 +277,8 @@ module.exports = NodeHelper.create({
 
         continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
 
-        // If we can identify departures at the follow-up line's first stop,
-        // apply the offset against those trips instead of against every
-        // candidate at the transfer location.
-        const lineStartCandidates = continuationCandidates.filter((candidate) =>
-            this.isLineStartPass(candidate)
-        );
-        const offsetBaseCandidates = lineStartCandidates.length > 0 ?
-            lineStartCandidates :
-            continuationCandidates;
-        const offsetCandidates = offsetBaseCandidates.slice(combinedRouteRule.offsetDepartures || 0);
-
-        for (const followUpDeparture of offsetCandidates) {
+        const validContinuationMatches = [];
+        for (const followUpDeparture of continuationCandidates) {
             const destinationPass = this.findPassAtStop(
                 passIndex,
                 preferredDestinationCode,
@@ -300,14 +290,29 @@ module.exports = NodeHelper.create({
             if (!this.isChronologicalContinuation(originViaPass, followUpDeparture, destinationPass))
                 continue;
 
-            return {
+            validContinuationMatches.push({
                 destinationPass: destinationPass,
                 transferArrivalPass: originViaPass,
                 transferDeparturePass: followUpDeparture
-            };
+            });
         }
 
-        return null;
+        if (validContinuationMatches.length === 0)
+            return null;
+
+        // Prefer matches whose follow-up trip is explicitly marked as starting
+        // at this stop. Apply the offset after building the valid set so
+        // offsetDepartures counts real usable continuations instead of raw
+        // candidates that may be filtered out later.
+        const lineStartMatches = validContinuationMatches.filter((match) =>
+            this.isLineStartPass(match.transferDeparturePass)
+        );
+        const offsetBaseMatches = lineStartMatches.length > 0 ?
+            lineStartMatches :
+            validContinuationMatches;
+
+        const offsetIndex = combinedRouteRule.offsetDepartures || 0;
+        return offsetBaseMatches[offsetIndex] || null;
     },
 
     findPreferredDestinationPass: function(pass, preferredDestinationCode, passIndex, config) {
