@@ -109,7 +109,8 @@ module.exports = NodeHelper.create({
                 viaTimingPointCode: null,
                 viaOriginTimingPointCode: null,
                 viaContinuationTimingPointCode: null,
-                maxTransferMinutes: 20
+                maxTransferMinutes: 20,
+                offsetDepartures: 0
             };
 
         const configuredRule = config.combinedRoutes[linePublicNumber];
@@ -119,7 +120,8 @@ module.exports = NodeHelper.create({
                 viaTimingPointCode: null,
                 viaOriginTimingPointCode: null,
                 viaContinuationTimingPointCode: null,
-                maxTransferMinutes: 20
+                maxTransferMinutes: 20,
+                offsetDepartures: 0
             };
 
         if (Array.isArray(configuredRule)) {
@@ -128,7 +130,8 @@ module.exports = NodeHelper.create({
                 viaTimingPointCode: null,
                 viaOriginTimingPointCode: null,
                 viaContinuationTimingPointCode: null,
-                maxTransferMinutes: 20
+                maxTransferMinutes: 20,
+                offsetDepartures: 0
             };
         }
 
@@ -154,7 +157,12 @@ module.exports = NodeHelper.create({
                     null,
                 maxTransferMinutes: Number.isFinite(configuredRule.maxTransferMinutes) ?
                     configuredRule.maxTransferMinutes :
-                    20
+                    20,
+                offsetDepartures: Number.isInteger(configuredRule.offsetDepartures) ?
+                    Math.max(0, configuredRule.offsetDepartures) :
+                    Number.isInteger(configuredRule.departureOffset) ?
+                        Math.max(0, configuredRule.departureOffset) :
+                        0
             };
         }
 
@@ -163,7 +171,8 @@ module.exports = NodeHelper.create({
             viaTimingPointCode: null,
             viaOriginTimingPointCode: null,
             viaContinuationTimingPointCode: null,
-            maxTransferMinutes: 20
+            maxTransferMinutes: 20,
+            offsetDepartures: 0
         };
     },
 
@@ -261,8 +270,9 @@ module.exports = NodeHelper.create({
         }
 
         continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
+        const offsetCandidates = continuationCandidates.slice(combinedRouteRule.offsetDepartures || 0);
 
-        for (const followUpDeparture of continuationCandidates) {
+        for (const followUpDeparture of offsetCandidates) {
             const destinationPass = this.findPassAtStop(
                 passIndex,
                 preferredDestinationCode,
@@ -401,6 +411,9 @@ module.exports = NodeHelper.create({
         const routeByOriginCode = {};
         const routeOrderByOriginCode = {};
         const routeSkipByOriginCode = {};
+        const allowedOriginLines = Array.isArray(config.originLineNumbers) ?
+            config.originLineNumbers.map((line) => String(line)) :
+            [];
 
         for (const [index, routeEntry] of routeEntries.entries()) {
             routeByOriginCode[routeEntry.originTimingPointCode] = routeEntry;
@@ -450,6 +463,14 @@ module.exports = NodeHelper.create({
                     if (debug)
                         console.log(this.name + ": Skipped line " + pass.LinePublicNumber +
                             " with destination " + pass.DestinationCode + " (" + destination + ")");
+                    continue;
+                }
+
+                if (allowedOriginLines.length > 0 &&
+                    !allowedOriginLines.includes(String(pass.LinePublicNumber))) {
+                    if (debug)
+                        console.log(this.name + ": Skipped line " + pass.LinePublicNumber +
+                            " because it is not in originLineNumbers");
                     continue;
                 }
 

@@ -73,6 +73,7 @@ Option | Description
 `displaymode` | Layout of the module.<br>*Possible values:* `"small"`, `"medium"`, `"large"`<br>**Required**
 `departures` | How many departures are shown per stop (not used in *small* mode).<br>*Default value:* `3`
 `skipDepartures` | Optional per-stop mapping to skip the first N matching departures before display. Keys are origin TimingPointCodes and values are the number of departures to skip. Example: `{ "53400221": 1, "53402520": 2 }` skips the first departure for `53400221` and the first two departures for `53402520`.<br>*Default value:* `{}`
+`originLineNumbers` | Optional list of origin line numbers to keep. If set, departures on other origin lines are filtered out before matching. Example: `["488"]` hides line `2` and only keeps line `488` from the origin stops.<br>*Default value:* `[]`
 `destinations` | An array with the destination codes you care about. Only lines going to one of these destinations will be shown.<br>*Default value:* `[]`
 `showTownName` | Include the town name in the stop name.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `showOnlyDepartures` | Only show departures from stops. This filters out lines that terminate at a stop and do not allow boarding.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
@@ -85,7 +86,7 @@ Option | Description
 `showHeader` | Show a header row in *large* display mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `alwaysShowStopName` | When set to `false`, the stop name is hidden if the module is only showing a single stop in *medium* or *large* mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
 `timeFormat` | Format of departure times shown.<br>*Possible values:* any [Moment.js format string](https://momentjs.com/docs/#/displaying/format/)<br>*Default value:* `"HH:mm"`
-`combinedRoutes` | Optional mapping for routes that continue via another line before the preferred destination stop. Keys are the origin line number. The safest form is an object with continuation lines plus the transfer stop where the change happens, for example: `{ "488": { "lines": ["416"], "viaTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. If the incoming and outgoing lines use different timing points within the same station, you can use separate transfer codes instead: `{ "488": { "lines": ["416"], "viaOriginTimingPointCode": "53600151", "viaContinuationTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. The module follows the origin trip to the transfer stop and then uses the first matching departure on the configured follow-up line within `maxTransferMinutes`. If the line number stays the same all the way, this option is not needed.<br>*Default value:* `{}`
+`combinedRoutes` | Optional mapping for routes that continue via another line before the preferred destination stop. Keys are the origin line number. The safest form is an object with continuation lines plus the transfer stop where the change happens, for example: `{ "488": { "lines": ["416"], "viaTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. If the incoming and outgoing lines use different timing points within the same station, you can use separate transfer codes instead: `{ "488": { "lines": ["416"], "viaOriginTimingPointCode": "53600151", "viaContinuationTimingPointCode": "53600151", "maxTransferMinutes": 20 } }`. The module follows the origin trip to the transfer stop and then uses the first matching departure on the configured follow-up line within `maxTransferMinutes`. If the first follow-up departure is consistently wrong, use `offsetDepartures` to skip one or more follow-up trips, for example `offsetDepartures: 1` to take the second matching `416` departure. If the line number stays the same all the way, this option is not needed.<br>*Default value:* `{}`
 `axiosfix` | Fixes issue #15, set to `"PostmanRuntime/7.26.2"` when needed.<br>*Default:* `Do not use if there is no problem`
 
 ## Example config.js content for this module
@@ -104,8 +105,9 @@ Option | Description
             "488": {
                 lines: ["416"],
                 viaOriginTimingPointCode: "53600151",
-                viaContinuationTimingPointCode: "53600160",
-                maxTransferMinutes: 20
+                viaContinuationTimingPointCode: "53600151",
+                maxTransferMinutes: 20,
+                offsetDepartures: 1
             }
         }
     }
@@ -130,6 +132,7 @@ through-service and show the preferred stop arrival time plus the trip duration.
         showTownName: true,
         departures: 10,
         showDelay: true,
+        originLineNumbers: ["488"],
         skipDepartures: {
             "53400221": 1,
             "53402520": 0
@@ -138,8 +141,9 @@ through-service and show the preferred stop arrival time plus the trip duration.
             "488": {
                 lines: ["416"],
                 viaOriginTimingPointCode: "53600151",
-                viaContinuationTimingPointCode: "53600160",
-                maxTransferMinutes: 20
+                viaContinuationTimingPointCode: "53600151",
+                maxTransferMinutes: 20,
+                offsetDepartures: 1
             }
         }
     }
@@ -149,6 +153,7 @@ through-service and show the preferred stop arrival time plus the trip duration.
 In this example, the module shows departures from both `53400221` and `53402520`,
 but only for journeys that continue to `53602030`. The `combinedRoutes` setting is
 needed here because line `488` continues as line `416` before reaching Leerpark.
+The `offsetDepartures` setting skips the first matching follow-up `416` departure.
 The `skipDepartures` setting skips the first matching departure for `53400221`.
 
 # Special Thanks
