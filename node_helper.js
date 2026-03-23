@@ -193,6 +193,21 @@ module.exports = NodeHelper.create({
         ) || null;
     },
 
+    isChronologicalContinuation: function(originPass, transferDeparturePass, destinationPass) {
+        const originTime = this.getPassDateTime(originPass);
+        const transferDepartureTime = this.getPassDateTime(transferDeparturePass);
+        const destinationTime = this.getPassDateTime(destinationPass);
+
+        if (Number.isNaN(originTime.getTime()) ||
+            Number.isNaN(transferDepartureTime.getTime()) ||
+            Number.isNaN(destinationTime.getTime())) {
+            return false;
+        }
+
+        return transferDepartureTime.getTime() >= originTime.getTime() &&
+            destinationTime.getTime() >= transferDepartureTime.getTime();
+    },
+
     findContinuationViaTransferStop: function(pass, combinedRouteRule, passIndex, preferredDestinationCode) {
         const originTransferTimingPointCode =
             combinedRouteRule.viaOriginTimingPointCode ||
@@ -247,24 +262,26 @@ module.exports = NodeHelper.create({
 
         continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
 
-        const firstFollowUpDeparture = continuationCandidates[0];
-        if (!firstFollowUpDeparture)
-            return null;
+        for (const followUpDeparture of continuationCandidates) {
+            const destinationPass = this.findPassAtStop(
+                passIndex,
+                preferredDestinationCode,
+                followUpDeparture,
+                combinedRouteRule.lines
+            );
+            if (!destinationPass)
+                continue;
+            if (!this.isChronologicalContinuation(originViaPass, followUpDeparture, destinationPass))
+                continue;
 
-        const destinationPass = this.findPassAtStop(
-            passIndex,
-            preferredDestinationCode,
-            firstFollowUpDeparture,
-            combinedRouteRule.lines
-        );
-        if (!destinationPass)
-            return null;
+            return {
+                destinationPass: destinationPass,
+                transferArrivalPass: originViaPass,
+                transferDeparturePass: followUpDeparture
+            };
+        }
 
-        return {
-            destinationPass: destinationPass,
-            transferArrivalPass: originViaPass,
-            transferDeparturePass: firstFollowUpDeparture
-        };
+        return null;
     },
 
     findPreferredDestinationPass: function(pass, preferredDestinationCode, passIndex, config) {
