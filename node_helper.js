@@ -217,6 +217,12 @@ module.exports = NodeHelper.create({
             destinationTime.getTime() >= transferDepartureTime.getTime();
     },
 
+    isLineStartPass: function(pass) {
+        return pass &&
+            (pass.JourneyStopType === "FIRST" ||
+             Number(pass.UserStopOrderNumber) === 1);
+    },
+
     findContinuationViaTransferStop: function(pass, combinedRouteRule, passIndex, preferredDestinationCode) {
         const originTransferTimingPointCode =
             combinedRouteRule.viaOriginTimingPointCode ||
@@ -270,7 +276,17 @@ module.exports = NodeHelper.create({
         }
 
         continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
-        const offsetCandidates = continuationCandidates.slice(combinedRouteRule.offsetDepartures || 0);
+
+        // If we can identify departures at the follow-up line's first stop,
+        // apply the offset against those trips instead of against every
+        // candidate at the transfer location.
+        const lineStartCandidates = continuationCandidates.filter((candidate) =>
+            this.isLineStartPass(candidate)
+        );
+        const offsetBaseCandidates = lineStartCandidates.length > 0 ?
+            lineStartCandidates :
+            continuationCandidates;
+        const offsetCandidates = offsetBaseCandidates.slice(combinedRouteRule.offsetDepartures || 0);
 
         for (const followUpDeparture of offsetCandidates) {
             const destinationPass = this.findPassAtStop(
