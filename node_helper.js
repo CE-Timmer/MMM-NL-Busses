@@ -332,21 +332,6 @@ module.exports = NodeHelper.create({
         if (combinedRouteRule.lines.length === 0)
             return null;
 
-        const continuationPasses = passIndex.continuation[preferredDestinationCode];
-        const possibleMatches = continuationPasses &&
-            continuationPasses[this.buildContinuationKey(pass)];
-        if (possibleMatches && possibleMatches.length > 0) {
-            const sameJourneyContinuation = possibleMatches.find((candidate) =>
-                combinedRouteRule.lines.includes(String(candidate.LinePublicNumber))
-            );
-            if (sameJourneyContinuation)
-                return {
-                    destinationPass: sameJourneyContinuation,
-                    transferArrivalPass: null,
-                    transferDeparturePass: null
-                };
-        }
-
         return this.findContinuationViaTransferStop(
             pass,
             combinedRouteRule,
