@@ -99,17 +99,46 @@ module.exports = NodeHelper.create({
     },
 
     getContinuationLines: function(config, linePublicNumber) {
+        return this.getCombinedRouteRule(config, linePublicNumber).lines;
+    },
+
+    getCombinedRouteRule: function(config, linePublicNumber) {
         if (!config.combinedRoutes)
-            return [];
+            return { lines: [], viaTimingPointCode: null, maxTransferMinutes: 20 };
 
-        const configuredLines = config.combinedRoutes[linePublicNumber];
-        if (configuredLines === undefined)
-            return [];
+        const configuredRule = config.combinedRoutes[linePublicNumber];
+        if (configuredRule === undefined)
+            return { lines: [], viaTimingPointCode: null, maxTransferMinutes: 20 };
 
-        if (Array.isArray(configuredLines))
-            return configuredLines.map((line) => String(line));
+        if (Array.isArray(configuredRule)) {
+            return {
+                lines: configuredRule.map((line) => String(line)),
+                viaTimingPointCode: null,
+                maxTransferMinutes: 20
+            };
+        }
 
-        return [String(configuredLines)];
+        if (typeof configuredRule === "object" && configuredRule !== null) {
+            const rawLines = Array.isArray(configuredRule.lines) ?
+                configuredRule.lines :
+                configuredRule.line !== undefined ?
+                    [configuredRule.line] :
+                    [];
+
+            return {
+                lines: rawLines.map((line) => String(line)),
+                viaTimingPointCode: configuredRule.viaTimingPointCode || configuredRule.via || null,
+                maxTransferMinutes: Number.isFinite(configuredRule.maxTransferMinutes) ?
+                    configuredRule.maxTransferMinutes :
+                    20
+            };
+        }
+
+        return {
+            lines: [String(configuredRule)],
+            viaTimingPointCode: null,
+            maxTransferMinutes: 20
+        };
     },
 
     getPassDateTime: function(pass) {
@@ -121,77 +150,114 @@ module.exports = NodeHelper.create({
         );
     },
 
-    findTimeBasedContinuationPass: function(pass, preferredDestinationCode, destinationPassIndex, continuationLines) {
-        const continuationPasses = destinationPassIndex.continuation[preferredDestinationCode];
-        if (!continuationPasses)
+    findPassAtStop: function(passIndex, timingPointCode, pass, allowedLines = null) {
+        const stopPasses = passIndex.continuation[timingPointCode];
+        if (!stopPasses)
             return null;
 
-        const departureTime = this.getPassDateTime(pass);
-        if (!(departureTime instanceof Date) || Number.isNaN(departureTime.getTime()))
+        const possibleMatches = stopPasses[this.buildContinuationKey(pass)];
+        if (!possibleMatches || possibleMatches.length === 0)
             return null;
 
-        const maxArrivalTime = departureTime.getTime() + (120 * 60 * 1000);
-        const candidates = [];
+        if (!allowedLines || allowedLines.length === 0)
+            return possibleMatches[0];
 
-        for (const destinationPassList of Object.values(continuationPasses)) {
-            for (const candidate of destinationPassList) {
+        return possibleMatches.find((candidate) =>
+            allowedLines.includes(String(candidate.LinePublicNumber))
+        ) || null;
+    },
+
+    findContinuationViaTransferStop: function(pass, combinedRouteRule, passIndex, preferredDestinationCode) {
+        if (!combinedRouteRule.viaTimingPointCode)
+            return null;
+
+        const originViaPass = this.findPassAtStop(
+            passIndex,
+            combinedRouteRule.viaTimingPointCode,
+            pass,
+            [String(pass.LinePublicNumber)]
+        );
+        if (!originViaPass)
+            return null;
+
+        const originArrivalAtVia = this.getPassDateTime(originViaPass);
+        if (!(originArrivalAtVia instanceof Date) || Number.isNaN(originArrivalAtVia.getTime()))
+            return null;
+
+        const transferStopPasses = passIndex.continuation[combinedRouteRule.viaTimingPointCode];
+        if (!transferStopPasses)
+            return null;
+
+        const maxTransferTime = originArrivalAtVia.getTime() + (combinedRouteRule.maxTransferMinutes * 60 * 1000);
+        const continuationCandidates = [];
+
+        for (const passList of Object.values(transferStopPasses)) {
+            for (const candidate of passList) {
                 if (String(candidate.DataOwnerCode || "") !== String(pass.DataOwnerCode || ""))
                     continue;
                 if (String(candidate.OperationDate || "") !== String(pass.OperationDate || ""))
                     continue;
-                if (!continuationLines.includes(String(candidate.LinePublicNumber)))
+                if (!combinedRouteRule.lines.includes(String(candidate.LinePublicNumber)))
                     continue;
 
                 const candidateTime = this.getPassDateTime(candidate);
                 if (!(candidateTime instanceof Date) || Number.isNaN(candidateTime.getTime()))
                     continue;
-                if (candidateTime.getTime() < departureTime.getTime())
+                if (candidateTime.getTime() < originArrivalAtVia.getTime())
                     continue;
-                if (candidateTime.getTime() > maxArrivalTime)
+                if (candidateTime.getTime() > maxTransferTime)
                     continue;
 
-                candidates.push(candidate);
+                continuationCandidates.push(candidate);
             }
         }
 
-        if (candidates.length === 0)
-            return null;
+        continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
 
-        candidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
-        return candidates[0];
+        for (const continuationCandidate of continuationCandidates) {
+            const destinationPass = this.findPassAtStop(
+                passIndex,
+                preferredDestinationCode,
+                continuationCandidate,
+                combinedRouteRule.lines
+            );
+            if (destinationPass)
+                return destinationPass;
+        }
+
+        return null;
     },
 
-    findPreferredDestinationPass: function(pass, preferredDestinationCode, destinationPassIndex, config) {
+    findPreferredDestinationPass: function(pass, preferredDestinationCode, passIndex, config) {
         if (!preferredDestinationCode)
             return null;
 
-        const exactPasses = destinationPassIndex.exact[preferredDestinationCode];
+        const exactPasses = passIndex.exact[preferredDestinationCode];
         const exactMatch = exactPasses && exactPasses[this.buildJourneyKey(pass)];
         if (exactMatch)
             return exactMatch;
 
-        const continuationLines = this.getContinuationLines(config, pass.LinePublicNumber);
-        if (continuationLines.length === 0)
+        const combinedRouteRule = this.getCombinedRouteRule(config, pass.LinePublicNumber);
+        if (combinedRouteRule.lines.length === 0)
             return null;
 
-        const continuationPasses = destinationPassIndex.continuation[preferredDestinationCode];
+        const continuationPasses = passIndex.continuation[preferredDestinationCode];
         const possibleMatches = continuationPasses &&
             continuationPasses[this.buildContinuationKey(pass)];
-
         if (possibleMatches && possibleMatches.length > 0) {
-            const directContinuationMatch = possibleMatches.find((candidate) =>
-                continuationLines.includes(String(candidate.LinePublicNumber))
+            const sameJourneyContinuation = possibleMatches.find((candidate) =>
+                combinedRouteRule.lines.includes(String(candidate.LinePublicNumber))
             );
-            if (directContinuationMatch)
-                return directContinuationMatch;
+            if (sameJourneyContinuation)
+                return sameJourneyContinuation;
         }
 
-        return this.findTimeBasedContinuationPass(
+        return this.findContinuationViaTransferStop(
             pass,
-            preferredDestinationCode,
-            destinationPassIndex,
-            continuationLines
-        ) || null;
+            combinedRouteRule,
+            passIndex,
+            preferredDestinationCode
+        );
     },
 
     enrichPreferredDestination: function(pass, preferredDestinationPass) {
@@ -372,6 +438,13 @@ module.exports = NodeHelper.create({
         const preferredDestinationCodes = [...new Set(routeEntries
             .map((entry) => entry.preferredDestinationTimingPointCode)
             .filter((code) => code))];
+        const transferTimingPointCodes = [...new Set(Object.values(config.combinedRoutes || {})
+            .map((rule) => {
+                if (rule && typeof rule === "object" && !Array.isArray(rule))
+                    return rule.viaTimingPointCode || rule.via || null;
+                return null;
+            })
+            .filter((code) => code))];
 
         const fetchTimingPoints = this.fetchData(
             config,
@@ -385,11 +458,17 @@ module.exports = NodeHelper.create({
             preferredDestinationCodes.join(","),
             false
         );
+        const fetchTransferTimingPoints = this.fetchData(
+            config,
+            config.timingPointEndpoint,
+            transferTimingPointCodes.join(","),
+            false
+        );
 
-        Promise.all([fetchTimingPoints, fetchStopAreas, fetchPreferredDestinations])
-        .then(([timingPointData, stopAreaData, preferredDestinationData]) => ({
+        Promise.all([fetchTimingPoints, fetchStopAreas, fetchPreferredDestinations, fetchTransferTimingPoints])
+        .then(([timingPointData, stopAreaData, preferredDestinationData, transferTimingPointData]) => ({
             data: this.mergeData(timingPointData, stopAreaData),
-            preferredDestinationData: preferredDestinationData
+            preferredDestinationData: Object.assign({}, preferredDestinationData, transferTimingPointData)
         }))
         .then(({data, preferredDestinationData}) =>
             this.processData(
