@@ -247,18 +247,24 @@ module.exports = NodeHelper.create({
 
         continuationCandidates.sort((left, right) => this.getPassDateTime(left) - this.getPassDateTime(right));
 
-        for (const continuationCandidate of continuationCandidates) {
-            const destinationPass = this.findPassAtStop(
-                passIndex,
-                preferredDestinationCode,
-                continuationCandidate,
-                combinedRouteRule.lines
-            );
-            if (destinationPass)
-                return destinationPass;
-        }
+        const firstFollowUpDeparture = continuationCandidates[0];
+        if (!firstFollowUpDeparture)
+            return null;
 
-        return null;
+        const destinationPass = this.findPassAtStop(
+            passIndex,
+            preferredDestinationCode,
+            firstFollowUpDeparture,
+            combinedRouteRule.lines
+        );
+        if (!destinationPass)
+            return null;
+
+        return {
+            destinationPass: destinationPass,
+            transferArrivalPass: originViaPass,
+            transferDeparturePass: firstFollowUpDeparture
+        };
     },
 
     findPreferredDestinationPass: function(pass, preferredDestinationCode, passIndex, config) {
@@ -268,7 +274,11 @@ module.exports = NodeHelper.create({
         const exactPasses = passIndex.exact[preferredDestinationCode];
         const exactMatch = exactPasses && exactPasses[this.buildJourneyKey(pass)];
         if (exactMatch)
-            return exactMatch;
+            return {
+                destinationPass: exactMatch,
+                transferArrivalPass: null,
+                transferDeparturePass: null
+            };
 
         const combinedRouteRule = this.getCombinedRouteRule(config, pass.LinePublicNumber);
         if (combinedRouteRule.lines.length === 0)
@@ -282,7 +292,11 @@ module.exports = NodeHelper.create({
                 combinedRouteRule.lines.includes(String(candidate.LinePublicNumber))
             );
             if (sameJourneyContinuation)
-                return sameJourneyContinuation;
+                return {
+                    destinationPass: sameJourneyContinuation,
+                    transferArrivalPass: null,
+                    transferDeparturePass: null
+                };
         }
 
         return this.findContinuationViaTransferStop(
@@ -293,9 +307,11 @@ module.exports = NodeHelper.create({
         );
     },
 
-    enrichPreferredDestination: function(pass, preferredDestinationPass) {
-        if (!preferredDestinationPass)
+    enrichPreferredDestination: function(pass, preferredDestinationMatch) {
+        if (!preferredDestinationMatch || !preferredDestinationMatch.destinationPass)
             return null;
+
+        const preferredDestinationPass = preferredDestinationMatch.destinationPass;
 
         const departureTime = pass.ExpectedDepartureTime || pass.TargetDepartureTime;
         const arrivalTime = preferredDestinationPass.ExpectedArrivalTime ||
@@ -315,7 +331,16 @@ module.exports = NodeHelper.create({
         return {
             PreferredArrivalTime: arrivalTime,
             PreferredDestinationName: preferredDestinationPass.TimingPointName || preferredDestinationPass.UserStopCode,
-            TravelDurationMinutes: travelDurationMinutes
+            TravelDurationMinutes: travelDurationMinutes,
+            TransferArrivalTime: preferredDestinationMatch.transferArrivalPass ?
+                this.getPassDateTime(preferredDestinationMatch.transferArrivalPass).toISOString() :
+                null,
+            TransferDepartureTime: preferredDestinationMatch.transferDeparturePass ?
+                this.getPassDateTime(preferredDestinationMatch.transferDeparturePass).toISOString() :
+                null,
+            TransferTimingPointName: preferredDestinationMatch.transferArrivalPass ?
+                (preferredDestinationMatch.transferArrivalPass.TimingPointName || preferredDestinationMatch.transferArrivalPass.UserStopCode) :
+                null
         };
     },
 
@@ -396,7 +421,7 @@ module.exports = NodeHelper.create({
                 const routeEntry = routeByOriginCode[pass.TimingPointCode] || {};
                 const routeOrder = routeOrderByOriginCode[pass.TimingPointCode];
                 const preferredDestinationCode = routeEntry.preferredDestinationTimingPointCode;
-                const preferredDestinationPass = this.findPreferredDestinationPass(
+                const preferredDestinationMatch = this.findPreferredDestinationPass(
                     pass,
                     preferredDestinationCode,
                     destinationPassIndex,
@@ -411,7 +436,7 @@ module.exports = NodeHelper.create({
                     continue;
                 }
 
-                if (preferredDestinationCode && !preferredDestinationPass) {
+                if (preferredDestinationCode && !preferredDestinationMatch) {
                     if (debug)
                         console.log(this.name + ": Skipped line " + pass.LinePublicNumber +
                             " because it does not reach timing point " + preferredDestinationCode);
@@ -419,7 +444,10 @@ module.exports = NodeHelper.create({
                 }
 
                 const wheelchairAccessible = (pass.WheelChairAccessible == "ACCESSIBLE") ? 1 : 0;
-                const preferredDestination = this.enrichPreferredDestination(pass, preferredDestinationPass);
+                const preferredDestination = this.enrichPreferredDestination(pass, preferredDestinationMatch);
+                const preferredDestinationPass = preferredDestinationMatch ?
+                    preferredDestinationMatch.destinationPass :
+                    null;
 
                 departures[timingPointName].push({
                     TargetDepartureTime: pass.TargetDepartureTime,
@@ -438,6 +466,9 @@ module.exports = NodeHelper.create({
                     PreferredDestinationName: preferredDestination ? preferredDestination.PreferredDestinationName : null,
                     TravelDurationMinutes: preferredDestination ? preferredDestination.TravelDurationMinutes : null,
                     PreferredDestinationLinePublicNumber: preferredDestinationPass ? preferredDestinationPass.LinePublicNumber : null,
+                    TransferArrivalTime: preferredDestination ? preferredDestination.TransferArrivalTime : null,
+                    TransferDepartureTime: preferredDestination ? preferredDestination.TransferDepartureTime : null,
+                    TransferTimingPointName: preferredDestination ? preferredDestination.TransferTimingPointName : null,
                     ConfiguredStopOrder: Number.isInteger(routeOrder) ? routeOrder : Number.MAX_SAFE_INTEGER
                 });
             }
