@@ -484,17 +484,24 @@ Module.register("MMM-NL-Busses", {
         return div;
     },
 
+    getTimingPointNamesWithDepartures: function() {
+        return Object.keys(this.departures).filter((timingPointName) =>
+            Array.isArray(this.departures[timingPointName]) &&
+            this.departures[timingPointName].length > 0
+        );
+    },
+
     /*
      * Constructs the content to be shown for this module. This will either be
      * a message (e.g., an error), or a table corresponding to the display mode.
      */
     createContent: function() {
-        if (this.errorMsg)
+        const timingPointNames = this.getTimingPointNamesWithDepartures();
+
+        if (this.errorMsg && timingPointNames.length === 0)
             return this.createMessage(this.errorMsg);
         if (!this.loaded)
             return this.createMessage(this.translate("LOADING"));
-
-        const timingPointNames = Object.keys(this.departures);
         timingPointNames.sort((left, right) => {
             const leftOrder = this.departures[left][0] && Number.isInteger(this.departures[left][0].ConfiguredStopOrder) ?
                 this.departures[left][0].ConfiguredStopOrder :
@@ -552,7 +559,8 @@ Module.register("MMM-NL-Busses", {
         if (notification === "ERROR" && payload.identifier === this.identifier) {
             if (this.config.debug)
                 Log.warn(this.name + ": Error fetching departures: " + payload.error);
-            this.errorMsg = this.translate("error");
+            if (this.getTimingPointNamesWithDepartures().length === 0)
+                this.errorMsg = this.translate("error");
             this.updateDom(this.config.animationSpeed);
         }
     }

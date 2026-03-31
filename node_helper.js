@@ -185,6 +185,14 @@ module.exports = NodeHelper.create({
         );
     },
 
+    getDepartureSortTime: function(pass) {
+        return pass.ExpectedDepartureTime ||
+            pass.TargetDepartureTime ||
+            pass.ExpectedArrivalTime ||
+            pass.TargetArrivalTime ||
+            "";
+    },
+
     findPassAtStop: function(passIndex, timingPointCode, pass, allowedLines = null) {
         const stopPasses = passIndex.continuation[timingPointCode];
         if (!stopPasses)
@@ -524,13 +532,15 @@ module.exports = NodeHelper.create({
         }
 	//console.log(departures);
         // Sort departures by time, per timingpoint.
-        for (const departureList of Object.values(departures)) {
+        for (const [timingPointName, departureList] of Object.entries(departures)) {
             departureList.sort(
-                (obj1, obj2) => obj1["ExpectedDepartureTime"].localeCompare(
-                    obj2["ExpectedDepartureTime"]));
+                (obj1, obj2) => this.getDepartureSortTime(obj1).localeCompare(
+                    this.getDepartureSortTime(obj2)));
             const skipCount = departureList.ConfiguredSkipDepartures || 0;
             if (skipCount > 0)
                 departureList.splice(0, skipCount);
+            if (departureList.length === 0)
+                delete departures[timingPointName];
         }
 
 	return departures;
