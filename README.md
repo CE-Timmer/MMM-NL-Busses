@@ -86,6 +86,10 @@ Option | Description
 `showHeader` | Show a header row in *large* display mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `false`
 `alwaysShowStopName` | When set to `false`, the stop name is hidden if the module is only showing a single stop in *medium* or *large* mode.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
 `timeFormat` | Format of departure times shown.<br>*Possible values:* any [Moment.js format string](https://momentjs.com/docs/#/displaying/format/)<br>*Default value:* `"HH:mm"`
+`autoRefreshOnEmpty` | Reload the entire MagicMirror client when this module has no departures to show for a while.<br>*Possible values:* `true` or `false`<br>*Default value:* `true`
+`emptyRefreshDelay` | How long the module must stay empty before the first client reload is triggered.<br>*Default value:* `5000`
+`emptyRefreshInterval` | How often to retry the client reload while the module still has no departures.<br>*Default value:* `5000`
+`disableAutoRefreshBetween` | Optional time window where empty-state client reloads are disabled. Use `{ from: "23:00", to: "06:30" }`. Windows that cross midnight are supported.<br>*Default value:* `null`
 `combinedRoutes` | Optional mapping for routes that continue via another line before the preferred destination stop. Keys are the origin line number. The safest form is an object with continuation lines plus the transfer stop where the change happens, for example: `{ "488": { "lines": ["416"], "viaTimingPointCode": "53600160", "maxTransferMinutes": 20 } }`. If the incoming and outgoing lines use different timing points within the same station, you can use separate transfer codes instead: `{ "488": { "lines": ["416"], "viaOriginTimingPointCode": "53600151", "viaContinuationTimingPointCode": "53600151", "maxTransferMinutes": 20 } }`. The module follows the origin trip to the transfer stop and then uses the first matching departure on the configured follow-up line within `maxTransferMinutes`. If the first follow-up departure is consistently wrong, use `offsetDepartures` to skip one or more follow-up trips. When the follow-up line exposes a clear line-start departure (`JourneyStopType: FIRST` or `UserStopOrderNumber: 1`), the offset is applied against those line-start trips first.<br>*Default value:* `{}`
 `axiosfix` | Fixes issue #15, set to `"PostmanRuntime/7.26.2"` when needed.<br>*Default:* `Do not use if there is no problem`
 
@@ -101,6 +105,13 @@ Option | Description
         displaymode: "medium",
         showTownName: true,
         departures: 3,
+        autoRefreshOnEmpty: true,
+        emptyRefreshDelay: 5 * 1000,
+        emptyRefreshInterval: 5 * 1000,
+        disableAutoRefreshBetween: {
+            from: "01:00",
+            to: "05:30"
+        },
         combinedRoutes: {
             "488": {
                 lines: ["416"],

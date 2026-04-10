@@ -8,6 +8,8 @@
 Module.register("MMM-NL-Busses", {
 
     scheduledTimer: -1,
+    emptyStateRefreshTimeout: -1,
+    emptyStateRefreshIntervalTimer: -1,
 
     // Default module config.
     defaults: {
@@ -19,6 +21,10 @@ Module.register("MMM-NL-Busses", {
         departuresOnlySuffix: "departures",
 
         refreshInterval: 5 * 1000 * 60, // refresh every 5 minutes
+        autoRefreshOnEmpty: true,
+        emptyRefreshDelay: 5 * 1000,
+        emptyRefreshInterval: 5 * 1000,
+        disableAutoRefreshBetween: null,
         timeFormat: "HH:mm",
 
         destinations: null,
@@ -121,6 +127,7 @@ Module.register("MMM-NL-Busses", {
             clearInterval(this.scheduledTimer);
             this.scheduledTimer = -1;
         }
+        this.clearEmptyStateRefreshTimers();
     },
 
     /* resume()
@@ -135,6 +142,107 @@ Module.register("MMM-NL-Busses", {
                 self.requestData();
             }, this.config.refreshInterval);
         }
+    },
+
+    refreshClient: function(reason) {
+        if (this.config.debug)
+            Log.warn(this.name + ": Reloading MagicMirror client" + (reason ? " (" + reason + ")" : ""));
+        window.location.reload();
+    },
+
+    clearEmptyStateRefreshTimers: function() {
+        if (this.emptyStateRefreshTimeout !== -1) {
+            clearTimeout(this.emptyStateRefreshTimeout);
+            this.emptyStateRefreshTimeout = -1;
+        }
+
+        if (this.emptyStateRefreshIntervalTimer !== -1) {
+            clearInterval(this.emptyStateRefreshIntervalTimer);
+            this.emptyStateRefreshIntervalTimer = -1;
+        }
+    },
+
+    parseTimeToMinutes: function(timeString) {
+        if (!timeString || typeof timeString !== "string")
+            return null;
+
+        const match = timeString.trim().match(/^(\d{1,2}):(\d{2})$/);
+        if (!match)
+            return null;
+
+        const hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59)
+            return null;
+
+        return (hours * 60) + minutes;
+    },
+
+    isWithinDisabledRefreshWindow: function() {
+        const disabledWindow = this.config.disableAutoRefreshBetween;
+        if (!disabledWindow || typeof disabledWindow !== "object")
+            return false;
+
+        const fromMinutes = this.parseTimeToMinutes(disabledWindow.from);
+        const toMinutes = this.parseTimeToMinutes(disabledWindow.to);
+        if (fromMinutes === null || toMinutes === null || fromMinutes === toMinutes)
+            return false;
+
+        const now = moment();
+        const currentMinutes = (now.hours() * 60) + now.minutes();
+
+        if (fromMinutes < toMinutes)
+            return currentMinutes >= fromMinutes && currentMinutes < toMinutes;
+
+        return currentMinutes >= fromMinutes || currentMinutes < toMinutes;
+    },
+
+    shouldAutoRefreshForEmptyState: function() {
+        if (!this.config.autoRefreshOnEmpty)
+            return false;
+
+        if (!this.loaded)
+            return false;
+
+        if (this.isWithinDisabledRefreshWindow())
+            return false;
+
+        return this.getTimingPointNamesWithDepartures().length === 0;
+    },
+
+    ensureEmptyStateRefreshSchedule: function() {
+        if (!this.shouldAutoRefreshForEmptyState()) {
+            this.clearEmptyStateRefreshTimers();
+            return;
+        }
+
+        if (this.emptyStateRefreshTimeout !== -1 || this.emptyStateRefreshIntervalTimer !== -1)
+            return;
+
+        const delay = Math.max(1000, Number(this.config.emptyRefreshDelay) || 5000);
+        const interval = Math.max(1000, Number(this.config.emptyRefreshInterval) || delay);
+        const self = this;
+
+        if (this.config.debug)
+            Log.warn(this.name + ": Empty state detected, scheduling client refresh in " + delay + " ms");
+
+        this.emptyStateRefreshTimeout = setTimeout(function() {
+            self.emptyStateRefreshTimeout = -1;
+
+            if (!self.shouldAutoRefreshForEmptyState()) {
+                self.clearEmptyStateRefreshTimers();
+                return;
+            }
+
+            self.refreshClient("empty state");
+            self.emptyStateRefreshIntervalTimer = setInterval(function() {
+                if (!self.shouldAutoRefreshForEmptyState()) {
+                    self.clearEmptyStateRefreshTimers();
+                    return;
+                }
+                self.refreshClient("empty state retry");
+            }, interval);
+        }, delay);
     },
 
     /*
@@ -553,6 +661,7 @@ Module.register("MMM-NL-Busses", {
             this.departures = payload.data;
             this.loaded = true;
             this.errorMsg = "";
+            this.ensureEmptyStateRefreshSchedule();
             this.updateDom(this.config.animationSpeed);
         }
 
@@ -561,6 +670,7 @@ Module.register("MMM-NL-Busses", {
                 Log.warn(this.name + ": Error fetching departures: " + payload.error);
             if (this.getTimingPointNamesWithDepartures().length === 0)
                 this.errorMsg = this.translate("error");
+            this.ensureEmptyStateRefreshSchedule();
             this.updateDom(this.config.animationSpeed);
         }
     }
